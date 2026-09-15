@@ -1,4 +1,39 @@
-# Pranmaan
+# Pramaan
+
+AI-assisted bid compliance verification with deterministic checks and human officer decisions.
+
+**Current status:** specification audit and backend bootstrap only. The product is not yet implemented or production-ready. See [the implementation roadmap](plans/implementation_roadmap.md) for specification conflicts, dependencies, and Phases 0–10. Existing specifications under `plans/` remain the source of truth.
+
+## Run the backend locally (Windows PowerShell)
+
+Requires Python 3.12+. Run from the repository root:
+
+```powershell
+python -m venv backend/.venv
+& backend/.venv/Scripts/python.exe -m pip install -c backend/requirements-dev.lock -e './backend[dev]'
+$env:ENV = 'development'
+& backend/.venv/Scripts/python.exe -m uvicorn src.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+`GET http://127.0.0.1:8000/health` reports process liveness only, not database, identity-provider, or AI readiness. No business APIs are exposed. Interactive API documentation remains unavailable until authentication is integrated. Configuration is read from process environment variables; secret files are not required by this bootstrap.
+
+The dependency constraints record the versions resolved on Windows/Python 3.12; they are not a hash-verified, cross-platform lock.
+
+## Verify the bootstrap
+
+```powershell
+& backend/.venv/Scripts/python.exe -m pytest -c backend/pyproject.toml backend/tests --cov=backend/src --cov-config=backend/pyproject.toml --cov-report=term-missing
+& backend/.venv/Scripts/python.exe -m ruff check backend
+& backend/.venv/Scripts/python.exe -m ruff format --check backend
+& backend/.venv/Scripts/python.exe -m mypy --config-file backend/pyproject.toml backend/src backend/tests
+& backend/.venv/Scripts/python.exe -m pip check
+```
+
+Each command must succeed independently. Tests currently cover only the bootstrap, not the future database, identity, document-processing, or procurement workflows. Independent security review, service integration, browser QA, and deployment verification remain outstanding.
+
+---
+
+The original repository onboarding template follows; it is not evidence that any integrations or deployment are configured.
 
 
 
