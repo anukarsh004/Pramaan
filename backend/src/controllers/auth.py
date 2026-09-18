@@ -148,10 +148,10 @@ async def login(
         "samesite": "lax",
     }
     
-    response.set_cookie("access_token", access_token, max_age=15 * 60, **cookie_kwargs)
-    response.set_cookie("refresh_token", raw_refresh_token, max_age=7 * 24 * 3600, path="/api/auth/refresh", **cookie_kwargs)
+    response.set_cookie("access_token", access_token, **cookie_kwargs)
+    response.set_cookie("refresh_token", raw_refresh_token, path="/api/auth/refresh", **cookie_kwargs)
     # CSRF cookie is NOT httponly so JS can read it and send it in headers
-    response.set_cookie("csrf_token", raw_csrf, max_age=7 * 24 * 3600, secure=settings.cookie_secure, samesite="lax")
+    response.set_cookie("csrf_token", raw_csrf, secure=settings.cookie_secure, samesite="lax")
 
     return {"message": "Logged in", "role": user.role, "csrf_token": raw_csrf}
 
@@ -202,8 +202,8 @@ async def refresh(
         "samesite": "lax",
     }
     
-    response.set_cookie("access_token", access_token, max_age=15 * 60, **cookie_kwargs)
-    response.set_cookie("refresh_token", new_raw_refresh_token, max_age=7 * 24 * 3600, path="/api/auth/refresh", **cookie_kwargs)
+    response.set_cookie("access_token", access_token, **cookie_kwargs)
+    response.set_cookie("refresh_token", new_raw_refresh_token, path="/api/auth/refresh", **cookie_kwargs)
     
     return {"message": "Token refreshed"}
 
