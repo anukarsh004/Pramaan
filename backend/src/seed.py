@@ -21,6 +21,7 @@ from src.models.entities import (
     CheckType,
     ComplianceCheck,
     ComplianceScore,
+    Decision,
     Document,
     EligibilityRule,
     Recommendation,
@@ -55,6 +56,8 @@ APP_2_ID = UUID("50000000-0000-4000-a000-000000000002")
 APP_3_ID = UUID("50000000-0000-4000-a000-000000000003")
 APP_4_ID = UUID("50000000-0000-4000-a000-000000000004")
 APP_5_ID = UUID("50000000-0000-4000-a000-000000000005")
+APP_6_ID = UUID("50000000-0000-4000-a000-000000000006")
+APP_7_ID = UUID("50000000-0000-4000-a000-000000000007")
 
 
 async def seed_if_empty(session: AsyncSession) -> None:
@@ -66,39 +69,56 @@ async def seed_if_empty(session: AsyncSession) -> None:
 
     logger.info("Seeding development database with demo data…")
 
+    # Create a default password hash for seeded users
+    from src.services.auth_service import get_password_hash
+    default_password_hash = get_password_hash("Password123!")
+
     # ── Users ──
     users = [
         User(
             id=DEV_OFFICER_ID,
-            keycloak_sub="dev-officer",
+            password_hash=default_password_hash,
             email="officer@pramaan.dev",
             full_name="Dev Officer",
             role="OFFICER",
             is_active=True,
+            is_verified=True,
         ),
         User(
             id=DEV_ADMIN_ID,
-            keycloak_sub="dev-admin",
+            password_hash=default_password_hash,
             email="admin@pramaan.dev",
             full_name="Dev Admin",
             role="ADMIN",
             is_active=True,
+            is_verified=True,
         ),
         User(
             id=DEV_BIDDER_ID,
-            keycloak_sub="dev-bidder",
+            password_hash=default_password_hash,
             email="bidder@pramaan.dev",
             full_name="Dev Bidder",
             role="BIDDER",
             is_active=True,
+            is_verified=True,
         ),
         User(
             id=DEV_VIGILANCE_ID,
-            keycloak_sub="dev-vigilance",
+            password_hash=default_password_hash,
             email="vigilance@pramaan.dev",
             full_name="Dev Vigilance",
             role="VIGILANCE",
             is_active=True,
+            is_verified=True,
+        ),
+        User(
+            id=BIDDER_USER_ID,
+            password_hash=default_password_hash,
+            email="techcorp@example.com",
+            full_name="TechCorp User",
+            role="BIDDER",
+            is_active=True,
+            is_verified=True,
         ),
     ]
     for u in users:
@@ -277,6 +297,25 @@ async def seed_if_empty(session: AsyncSession) -> None:
             closed_at=ts - timedelta(days=7),
             rule_set_id=RULESET_1_ID,
         ),
+        # Golden Case 1: Doc Tamper / Inconsistency
+        BidApplication(
+            id=APP_6_ID,
+            bidder_id=BIDDER_1_ID,
+            tender_id=TENDER_2_ID,
+            status="ready_for_review",
+            submitted_at=ts - timedelta(days=2),
+            rule_set_id=RULESET_1_ID,
+        ),
+        # Golden Case 2: Unavailable Source & Human Override
+        BidApplication(
+            id=APP_7_ID,
+            bidder_id=BIDDER_3_ID,
+            tender_id=TENDER_3_ID,
+            status="closed",
+            submitted_at=ts - timedelta(days=15),
+            closed_at=ts - timedelta(days=2),
+            rule_set_id=RULESET_1_ID,
+        ),
     ]
     for a in applications:
         session.add(a)
@@ -434,6 +473,128 @@ async def seed_if_empty(session: AsyncSession) -> None:
                 "anomaly_penalty": 30.0,
             },
             computed_at=ts - timedelta(days=8),
+        )
+    )
+
+    # ── Documents & Checks for APP_6 (Doc Tamper Inconsistency) ──
+    # Name mismatch planted between PAN and GST
+    session.add(
+        Document(
+            id=uuid4(),
+            application_id=APP_6_ID,
+            doc_type="pan_card",
+            version=1,
+            storage_uri=f"local://{APP_6_ID}/pan_card_v1.pdf",
+            extraction_status="completed",
+            extracted_fields={"pan_number": "ABCPA1234A", "name": "Apex Technologies Pvt Ltd", "status": "Active"},
+            extraction_confidence=Decimal("0.98"),
+            uploaded_at=ts - timedelta(days=2),
+            uploaded_by=DEV_OFFICER_ID,
+        )
+    )
+    session.add(
+        Document(
+            id=uuid4(),
+            application_id=APP_6_ID,
+            doc_type="gst_certificate",
+            version=1,
+            storage_uri=f"local://{APP_6_ID}/gst_certificate_v1.pdf",
+            extraction_status="completed",
+            extracted_fields={"gstin": "29ABCPA1234A1Z5", "trade_name": "FAKE CORP LLC", "gst_status": "Active"},
+            extraction_confidence=Decimal("0.95"),
+            uploaded_at=ts - timedelta(days=2),
+            uploaded_by=DEV_OFFICER_ID,
+        )
+    )
+    session.add(
+        ComplianceCheck(
+            id=uuid4(),
+            application_id=APP_6_ID,
+            check_type_id=CT_PAN_ID,
+            result="pass",
+            severity=None,
+            source="RULE_ENGINE",
+            evidence={"adapter": "synthetic"},
+            checked_at=ts - timedelta(days=2),
+        )
+    )
+    # Plant a HIGH risk score for doc tamper
+    session.add(
+        ComplianceScore(
+            id=uuid4(),
+            application_id=APP_6_ID,
+            overall_score=40,
+            risk_level="HIGH",
+            score_breakdown={
+                "contributions": {str(CT_PAN_ID): 25.0, str(CT_GST_ID): 0.0},
+                "anomaly_penalty": 40.0, # Large penalty for name mismatch
+                "tampering_flags": ["Name mismatch between PAN (Apex Technologies Pvt Ltd) and GST (FAKE CORP LLC)"]
+            },
+            computed_at=ts - timedelta(days=2),
+        )
+    )
+    session.add(
+        Recommendation(
+            id=uuid4(),
+            application_id=APP_6_ID,
+            recommendation_text="CRITICAL: Serious inconsistency detected. The PAN card name (Apex Technologies Pvt Ltd) does not match the GST trade name (FAKE CORP LLC). This strongly suggests document tampering or fraud.",
+            suggested_action="disqualify",
+            model_used="synthetic-demo-v1",
+            prompt_tokens=0,
+            completion_tokens=0,
+            generated_at=ts - timedelta(days=2),
+        )
+    )
+
+    # ── Documents & Checks for APP_7 (Unavailable Source & Human Override) ──
+    # Check is not_evaluated
+    session.add(
+        ComplianceCheck(
+            id=uuid4(),
+            application_id=APP_7_ID,
+            check_type_id=CT_MCA_ID,
+            result="not_evaluated",
+            severity="high",
+            source="RULE_ENGINE",
+            evidence={"error": "Source API timeout (504 Gateway Timeout)", "adapter": "synthetic"},
+            checked_at=ts - timedelta(days=15),
+        )
+    )
+    session.add(
+        ComplianceScore(
+            id=uuid4(),
+            application_id=APP_7_ID,
+            overall_score=85,
+            risk_level="MEDIUM",
+            score_breakdown={
+                "contributions": {str(CT_PAN_ID): 25.0, str(CT_GST_ID): 25.0, str(CT_UDYAM_ID): 15.0, str(CT_MCA_ID): 0.0, str(CT_DEBAR_ID): 20.0},
+                "anomaly_penalty": 0.0,
+            },
+            computed_at=ts - timedelta(days=15),
+        )
+    )
+    session.add(
+        Recommendation(
+            id=uuid4(),
+            application_id=APP_7_ID,
+            recommendation_text="MCA validation could not be completed due to source system unavailability. Other mandatory checks passed. Manual verification of MCA status is required before proceeding.",
+            suggested_action="request_more_info",
+            model_used="synthetic-demo-v1",
+            prompt_tokens=0,
+            completion_tokens=0,
+            generated_at=ts - timedelta(days=15),
+        )
+    )
+    # Plant the Human Override
+    session.add(
+        Decision(
+            id=uuid4(),
+            application_id=APP_7_ID,
+            officer_id=DEV_OFFICER_ID,
+            decision_value="qualify",
+            remarks="Verified MCA active status offline via physical certificate provided by bidder. Overriding AI recommendation to wait.",
+            overrode_ai_recommendation=True,
+            decided_at=ts - timedelta(days=2),
         )
     )
 

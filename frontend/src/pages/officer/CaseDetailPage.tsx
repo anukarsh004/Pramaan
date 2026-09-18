@@ -258,8 +258,9 @@ export function CaseDetailPage() {
             <h3 className="text-lg font-bold text-gray-900 mb-4">Record Decision</h3>
             <div className="space-y-4">
               <div>
-                <label className="input-label">Decision</label>
+                <label htmlFor="decisionValue" className="input-label">Decision</label>
                 <select
+                  id="decisionValue"
                   value={decisionValue}
                   onChange={(e) => setDecisionValue(e.target.value as typeof decisionValue)}
                   className="input"
@@ -270,8 +271,9 @@ export function CaseDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="input-label">Remarks</label>
+                <label htmlFor="remarks" className="input-label">Remarks</label>
                 <textarea
+                  id="remarks"
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   className="input min-h-[100px]"
@@ -296,8 +298,9 @@ export function CaseDetailPage() {
             <h3 className="text-lg font-bold text-gray-900 mb-4">Reopen Case</h3>
             <div className="space-y-4">
               <div>
-                <label className="input-label">Justification</label>
+                <label htmlFor="reopenRemarks" className="input-label">Justification</label>
                 <textarea
+                  id="reopenRemarks"
                   value={reopenRemarks}
                   onChange={(e) => setReopenRemarks(e.target.value)}
                   className="input min-h-[100px]"

@@ -35,7 +35,7 @@ describe('UploadPage', () => {
 
   it('renders upload page correctly', () => {
     renderWithProviders(<UploadPage />);
-    expect(screen.getByText('Upload Documents')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Upload Documents' })).toBeInTheDocument();
     expect(screen.getByText('Application: test-app…')).toBeInTheDocument();
   });
 

@@ -52,6 +52,7 @@ describe('DocTamperPage', () => {
                 category: 'METADATA',
                 severity: 'MEDIUM',
                 description: 'Metadata anomaly detected',
+                evidence: {},
               },
             ],
           },
@@ -59,6 +60,7 @@ describe('DocTamperPage', () => {
         name_comparisons: [
           {
             doc_type: 'PAN_CARD',
+            field_name: 'Name',
             value: 'John Doe',
             matches_primary: true,
           },
@@ -71,7 +73,7 @@ describe('DocTamperPage', () => {
     // Mock firing the analyze button since we need to trigger refetch
     // or it fetches on mount for the default ID 'demo-app-001'
     expect(await screen.findByText('Detected some anomalies.')).toBeInTheDocument();
-    expect(screen.getByText('PAN CARD')).toBeInTheDocument();
+    expect(screen.getAllByText('PAN CARD')[0]).toBeInTheDocument();
     expect(screen.getByText('Metadata anomaly detected')).toBeInTheDocument();
   });
 });

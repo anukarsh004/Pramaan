@@ -20,6 +20,15 @@ const RELATIONSHIP_ICONS: Record<string, React.ReactNode> = {
   PRICE_COORDINATION: <DollarSign size={14} />,
 };
 
+const getHeatmapColor = (strength: number) => {
+  if (strength >= 0.8) return 'bg-red-600';
+  if (strength >= 0.6) return 'bg-orange-500';
+  if (strength >= 0.4) return 'bg-amber-500';
+  if (strength >= 0.2) return 'bg-yellow-400';
+  return 'bg-green-500';
+};
+
+
 export function BidRiggingPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['bid-rigging'],
@@ -164,15 +173,17 @@ export function BidRiggingPage() {
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">{edge.details}</p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className="text-xs font-mono text-gray-400">
-                        {(edge.strength * 100).toFixed(0)}%
-                      </span>
-                      <div className="w-10 h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
-                        <div
-                          className={`h-full rounded-full ${RELATIONSHIP_COLORS[edge.relationship_type] || 'bg-gray-400'}`}
-                          style={{ width: `${edge.strength * 100}%` }}
-                        />
+                    <div className="text-right flex-shrink-0 flex items-center justify-end" title={`Risk Heat: ${(edge.strength * 100).toFixed(0)}%`}>
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 5 }).map((_, idx) => {
+                          const isActive = (edge.strength * 5) > idx;
+                          return (
+                            <div
+                              key={idx}
+                              className={`w-2 h-4 rounded-sm transition-colors ${isActive ? getHeatmapColor(edge.strength) : 'bg-gray-100'}`}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

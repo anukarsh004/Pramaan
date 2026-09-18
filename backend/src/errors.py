@@ -57,7 +57,8 @@ async def handle_http_error(request: Request, exc: Exception) -> JSONResponse:
 
 
 async def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
-    return error_response(request, 400, "INVALID_INPUT", "The request contains invalid data.")
+    logger.error("Validation error: %s", exc)
+    return error_response(request, 400, "INVALID_INPUT", f"The request contains invalid data. Details: {exc}")
 
 
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:

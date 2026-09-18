@@ -75,67 +75,58 @@ DEV_USERS["vigilance"] = Principal(
 
 async def current_user(
     request: Request,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     session: Annotated[AsyncSession | None, Depends(optional_session_dependency)],
 ) -> Principal:
     settings: Settings = request.app.state.settings
 
     # Dev auth bypass: accept X-Dev-Role header
-    if settings.dev_auth_bypass:
+    if settings.dev_auth_bypass and "X-Dev-Role" in request.headers:
         dev_role = request.headers.get("X-Dev-Role", "officer").lower()
         principal = DEV_USERS.get(dev_role)
         if principal:
             return principal
-        raise HTTPException(400, detail="Invalid X-Dev-Role; use officer/admin/bidder/vigilance")
 
-    if credentials is None:
-        raise HTTPException(401, headers={"WWW-Authenticate": "Bearer"})
-    if not settings.keycloak_issuer:
-        raise HTTPException(503)
-    client = getattr(request.app.state, "jwks_client", None)
-    if not isinstance(client, jwt.PyJWKClient):
-        raise HTTPException(503)
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        # Fallback to Authorization header for API clients (if needed)
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            access_token = auth_header.split(" ")[1]
+
+    if not access_token:
+        raise HTTPException(401, detail="Authentication required")
+
+    if not settings.access_token_secret:
+        raise HTTPException(503, detail="ACCESS_TOKEN_SECRET not configured")
+
     try:
-        signing_key = await asyncio.to_thread(
-            client.get_signing_key_from_jwt, credentials.credentials
-        )
         claims = AccessClaims.model_validate(
             jwt.decode(
-                credentials.credentials,
-                signing_key.key,
-                algorithms=["RS256"],
-                audience=settings.keycloak_audience,
-                issuer=settings.keycloak_issuer,
+                access_token,
+                settings.access_token_secret.get_secret_value(),
+                algorithms=["HS256"],
+                audience="pramaan-api",
+                issuer="pramaan",
                 options={"require": ["exp", "sub", "iss", "aud"]},
             )
         )
-    except jwt.PyJWKClientConnectionError as exc:
-        raise HTTPException(503) from exc
     except (jwt.PyJWTError, ValueError) as exc:
-        raise HTTPException(401, headers={"WWW-Authenticate": "Bearer"}) from exc
+        raise HTTPException(401, detail="Invalid or expired token") from exc
+
     if session is None:
         raise HTTPException(503)
-    user = await session.scalar(select(User).where(User.keycloak_sub == claims.sub))
+
+    user = await session.get(User, UUID(claims.sub))
     if user is None or not user.is_active or user.deleted_at is not None:
-        raise HTTPException(403)
-    if user.role in {Role.OFFICER, Role.ADMIN} and not {"otp", "mfa"}.intersection(claims.amr):
-        raise HTTPException(403)
+        raise HTTPException(403, detail="User account disabled or deleted")
+
     return Principal(id=user.id, sub=claims.sub, full_name=user.full_name, role=Role(user.role))
 
 
 Actor = Annotated[Principal, Depends(current_user)]
 
 
-def csrf_token(settings: Settings, principal: Principal) -> str:
-    if settings.csrf_secret is None:
-        if settings.dev_auth_bypass:
-            return "dev-csrf-token"
-        raise HTTPException(503)
-    return jwt.encode(
-        {"sub": principal.sub, "exp": datetime.now(UTC) + timedelta(minutes=15), "aud": "csrf"},
-        settings.csrf_secret.get_secret_value(),
-        algorithm="HS256",
-    )
+
 
 
 async def require_csrf(
@@ -146,21 +137,19 @@ async def require_csrf(
     if request.method in {"GET", "HEAD", "OPTIONS"}:
         return
     settings: Settings = request.app.state.settings
-    if settings.dev_auth_bypass:
+    if settings.dev_auth_bypass and "X-Dev-Role" in request.headers:
         return  # Skip CSRF in dev mode
-    if settings.csrf_secret is None:
-        raise HTTPException(503)
-    if x_csrf_token is None:
-        raise HTTPException(403)
-    try:
-        claims = jwt.decode(
-            x_csrf_token,
-            settings.csrf_secret.get_secret_value(),
-            algorithms=["HS256"],
-            audience="csrf",
-            options={"require": ["sub", "exp", "aud"]},
-        )
-    except jwt.PyJWTError as exc:
-        raise HTTPException(403) from exc
-    if claims["sub"] != actor.sub:
-        raise HTTPException(403)
+        
+    cookie_csrf = request.cookies.get("csrf_token")
+    if not cookie_csrf or not x_csrf_token or cookie_csrf != x_csrf_token:
+        raise HTTPException(403, detail="CSRF token validation failed")
+
+
+def require_role(allowed_roles: set[Role]):
+    """Returns a dependency that asserts the current user has one of the allowed roles."""
+    def role_checker(actor: Actor) -> Principal:
+        if actor.role not in allowed_roles:
+            raise HTTPException(403, detail="Insufficient permissions")
+        return actor
+    return Depends(role_checker)
+

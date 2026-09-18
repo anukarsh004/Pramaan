@@ -23,3 +23,17 @@ class ApplicationRepository:
         self.session.add(application)
         await self.session.flush()
         return application
+
+    async def update(self, application: BidApplication) -> BidApplication:
+        self.session.add(application)
+        await self.session.flush()
+        return application
+
+    async def get_by_tender_bidder(self, tender_id: UUID, bidder_id: UUID) -> BidApplication | None:
+        stmt = select(BidApplication).where(
+            BidApplication.tender_id == tender_id,
+            BidApplication.bidder_id == bidder_id,
+            BidApplication.status != "closed"
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()

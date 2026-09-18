@@ -42,8 +42,10 @@ describe('BidRiggingPage', () => {
           {
             cluster_id: 'cluster-1',
             risk_score: 85,
+            bidder_ids: ['bidder-1', 'bidder-2'],
             bidder_names: ['Bidder A', 'Bidder B'],
             signals: ['SHARED_ADDRESS'],
+            evidence: { address: 'Same Address' },
           },
         ],
         relationship_edges: [],

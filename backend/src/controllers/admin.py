@@ -65,20 +65,18 @@ def require_admin(actor: Actor) -> None:
 async def create_tender(
     body: TenderCreate, session: Session, actor: Actor
 ) -> dict[str, JsonValue]:
-    require_admin(actor)
     from datetime import date
+    from src.services.tenders import create_tender as create_tender_service
 
-    tender = Tender(
-        id=uuid4(),
+    tender = await create_tender_service(
+        session=session,
+        actor=actor,
         gem_bid_number=body.gem_bid_number,
         title=body.title,
         category=body.category,
         estimated_value=body.estimated_value,
         closing_date=date.fromisoformat(body.closing_date),
-        created_by=actor.id,
     )
-    session.add(tender)
-    await session.flush()
     return {"success": True, "id": str(tender.id), "title": tender.title}
 
 
@@ -219,9 +217,10 @@ async def list_users(session: Session, actor: Actor) -> dict[str, JsonValue]:
 async def create_bidder(
     body: BidderCreate, session: Session, actor: Actor
 ) -> dict[str, JsonValue]:
-    require_admin(actor)
-    bidder = Bidder(
-        id=uuid4(),
+    from src.services.bidders import create_bidder as create_bidder_service
+    bidder = await create_bidder_service(
+        session=session,
+        actor=actor,
         legal_name=body.legal_name,
         pan_number=body.pan_number,
         gstin=body.gstin,
@@ -230,8 +229,6 @@ async def create_bidder(
         registered_address=body.registered_address,
         user_id=body.user_id,
     )
-    session.add(bidder)
-    await session.flush()
     return {"success": True, "id": str(bidder.id)}
 
 
@@ -242,14 +239,8 @@ async def create_bidder(
 async def assign_rule_set(
     tender_id: UUID, rule_set_id: UUID, session: Session, actor: Actor
 ) -> dict[str, JsonValue]:
-    require_admin(actor)
-    tender = await session.get(Tender, tender_id)
-    if tender is None:
-        raise HTTPException(404)
-    rs = await session.get(RuleSet, rule_set_id)
-    if rs is None:
-        raise HTTPException(404)
-    tender.eligibility_rule_set_id = rule_set_id
+    from src.services.tenders import assign_rule_set_to_tender
+    await assign_rule_set_to_tender(session, actor, tender_id, rule_set_id)
     return {"success": True}
 
 
@@ -260,16 +251,6 @@ async def assign_rule_set(
 async def assign_officer(
     tender_id: UUID, officer_id: UUID, session: Session, actor: Actor
 ) -> dict[str, JsonValue]:
-    require_admin(actor)
-    from src.models.entities import Assignment
-
-    tender = await session.get(Tender, tender_id)
-    if tender is None:
-        raise HTTPException(404)
-    existing = await session.get(Assignment, (tender_id, officer_id))
-    if existing:
-        return {"success": True, "message": "Already assigned"}
-    assignment = Assignment(tender_id=tender_id, officer_id=officer_id)
-    session.add(assignment)
-    await session.flush()
+    from src.services.tenders import assign_officer_to_tender
+    await assign_officer_to_tender(session, actor, tender_id, officer_id)
     return {"success": True}

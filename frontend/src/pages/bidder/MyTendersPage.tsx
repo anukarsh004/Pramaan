@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { FileSearch, Calendar, ArrowRight, Upload, BriefcaseBusiness, Clock3, BadgeCheck } from 'lucide-react';
+import { FileSearch, Calendar, ArrowRight, Upload, BriefcaseBusiness, Clock3, BadgeCheck, ShieldAlert, FileText } from 'lucide-react';
 
 export function MyTendersPage() {
   const navigate = useNavigate();
@@ -30,6 +30,13 @@ export function MyTendersPage() {
     }
     return soonest;
   }, null);
+
+  const vaultDocuments = [
+    { name: 'GST Certificate', status: 'valid', expires: '2027-03-31', daysLeft: 195 },
+    { name: 'MSME/Udyam', status: 'expiring_soon', expires: '2026-10-05', daysLeft: 18 },
+    { name: 'ISO 9001:2015', status: 'expired', expires: '2026-08-01', daysLeft: -47 },
+    { name: 'PAN Card', status: 'valid', expires: 'Never', daysLeft: 999 },
+  ];
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl">
@@ -149,22 +156,46 @@ export function MyTendersPage() {
           </div>
 
           <div className="card">
-            <div className="card-header">
-              <h2 className="text-base font-semibold text-gray-900">Upload Checklist</h2>
+            <div className="card-header flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Smart Document Vault</h2>
+              <span className="text-xs font-medium text-brand-600 cursor-pointer hover:underline">Manage All</span>
             </div>
             <div className="card-body space-y-3">
-              <div className="rounded-xl bg-brand-50 border border-brand-100 p-3">
-                <p className="text-sm font-semibold text-brand-800">Recommended documents</p>
+              <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 mb-2 flex items-start gap-2">
+                 <ShieldAlert size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                 <p className="text-xs text-blue-800 leading-relaxed">AI automatically scans your vault before every bid to prevent rejection due to expired documents.</p>
               </div>
-              {['PAN Card', 'GST Certificate', 'Udyam Certificate', 'MCA Extract / CIN', 'OEM Authorization', 'Experience Certificate'].map((doc, idx) => (
-                <div key={doc} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+
+              {vaultDocuments.map((doc, idx) => (
+                <div key={doc.name} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 transition-all ${
+                  doc.status === 'expired' ? 'border-red-200 bg-red-50/50' : 
+                  doc.status === 'expiring_soon' ? 'border-amber-200 bg-amber-50/50' : 
+                  'border-gray-200 bg-gray-50'
+                }`}>
                   <div className="flex items-center gap-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-brand-700 shadow-sm">
-                      {idx + 1}
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${
+                       doc.status === 'expired' ? 'bg-red-100 text-red-600' :
+                       doc.status === 'expiring_soon' ? 'bg-amber-100 text-amber-600' :
+                       'bg-white text-brand-600'
+                    }`}>
+                      <FileText size={14} />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{doc}</span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 block">{doc.name}</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                         doc.status === 'expired' ? 'text-red-600' :
+                         doc.status === 'expiring_soon' ? 'text-amber-600' :
+                         'text-gray-500'
+                      }`}>
+                         {doc.status === 'expired' ? 'Expired' : doc.status === 'expiring_soon' ? `Expiring in ${doc.daysLeft} days` : 'Valid'}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-500">Ready</span>
+                  {doc.status !== 'valid' && (
+                     <button className="text-[10px] font-bold text-white bg-gray-900 px-2.5 py-1.5 rounded hover:bg-gray-800 transition-colors">
+                        Update
+                     </button>
+                  )}
                 </div>
               ))}
 

@@ -47,6 +47,8 @@ describe('RuleConfigPage', () => {
         {
           id: 't-1',
           title: 'Test Tender',
+          category: 'IT Services',
+          closing_date: '2026-10-01T00:00:00Z',
           gem_bid_number: 'GEM/2026/B/123',
           rule_set_id: 'rs-1',
         },

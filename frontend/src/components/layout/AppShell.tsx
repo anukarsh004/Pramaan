@@ -61,7 +61,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-brand-50">
       {/* Sidebar */}
       <aside
         className={`${
@@ -156,7 +156,10 @@ export function AppShell() {
                 ))}
                 <div className="border-t border-gray-100 mt-1 pt-1">
                   <button
-                    onClick={logout}
+                    onClick={() => {
+                      logout();
+                      navigate('/login');
+                    }}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                   >
                     <LogOut size={14} />
@@ -172,13 +175,7 @@ export function AppShell() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 flex-shrink-0">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            {sidebarOpen ? <X size={18} className="text-gray-500" /> : <Menu size={18} className="text-gray-500" />}
-          </button>
+        <header className="h-16 flex items-center justify-end px-6 bg-white border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-200">
               <Activity size={12} className="text-green-600" />

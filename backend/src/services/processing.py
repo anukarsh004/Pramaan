@@ -199,4 +199,22 @@ async def run_mock_pipeline(
         generated_at=now(),
     )
     session.add(recommendation)
+
+    # Step 5: Transition case to READY
+    from src.repositories.cases import get_case
+    from src.domain.contracts import CaseStatus
+    from src.repositories.audit import append_event
+
+    application = await get_case(session, application_id, actor, lock=True)
+    if application.status == CaseStatus.PROCESSING:
+        application.status = CaseStatus.READY
+        await append_event(
+            session,
+            application_id,
+            str(actor.id),
+            "PROCESSING_COMPLETE",
+            {"status": "processing"},
+            {"status": "ready_for_review"},
+        )
+
     await session.flush()

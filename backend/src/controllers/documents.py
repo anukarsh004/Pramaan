@@ -70,17 +70,29 @@ async def upload_document(
     )
     version = (latest or 0) + 1
 
-    # Save file to local storage
+    import aioboto3
+
+    # Save file to MinIO
     settings = request.app.state.settings
-    storage_dir = Path(settings.storage_path) / str(application_id)
-    storage_dir.mkdir(parents=True, exist_ok=True)
     file_ext = Path(file.filename or "document").suffix or ".pdf"
     file_name = f"{doc_type}_v{version}{file_ext}"
-    file_path = storage_dir / file_name
-    with open(file_path, "wb") as f:
-        f.write(content)
+    s3_key = f"{application_id}/{file_name}"
+    
+    session_s3 = aioboto3.Session()
+    async with session_s3.client(
+        "s3",
+        endpoint_url=settings.s3_endpoint_url,
+        aws_access_key_id=settings.s3_access_key,
+        aws_secret_access_key=settings.s3_secret_key.get_secret_value() if settings.s3_secret_key else None
+    ) as s3_client:
+        await s3_client.put_object(
+            Bucket=settings.s3_bucket,
+            Key=s3_key,
+            Body=content,
+            ContentType=content_type
+        )
 
-    storage_uri = f"local://{application_id}/{file_name}"
+    storage_uri = f"s3://{settings.s3_bucket}/{s3_key}"
 
     document = Document(
         id=uuid4(),
@@ -198,22 +210,16 @@ async def trigger_processing(
         {"status": application.status},
     )
 
-    # In a full system, this would enqueue a Celery task.
-    # For demo, we run mock processing synchronously.
-    from src.services.processing import run_mock_pipeline
+    # Enqueue a Celery task
+    from src.worker import process_application_task
 
-    await run_mock_pipeline(session, application_id, application.rule_set_id, actor)
-
-    # Transition to ready_for_review
-    application.status = CaseStatus.READY
-
-    await append_event(
-        session,
-        application_id,
+    process_application_task.delay(
+        str(application_id),
+        str(application.rule_set_id),
         str(actor.id),
-        "PROCESSING_COMPLETE",
-        {"status": CaseStatus.PROCESSING},
-        {"status": CaseStatus.READY},
+        actor.sub,
+        actor.full_name,
+        actor.role
     )
 
     return {"success": True, "status": application.status}

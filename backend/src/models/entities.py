@@ -30,13 +30,39 @@ class Entity(Base):
 
 class User(Entity):
     __tablename__ = "users"
-    keycloak_sub: Mapped[str] = mapped_column(String(255), unique=True)
     email: Mapped[str] = mapped_column(String(320), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
     full_name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    is_verified: Mapped[bool] = mapped_column(default=False)
     mfa_enabled: Mapped[bool] = mapped_column(default=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_login_count: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (CheckConstraint("role IN ('OFFICER','ADMIN','BIDDER','VIGILANCE')"),)
+
+
+class RefreshTokenSession(Entity):
+    __tablename__ = "refresh_token_sessions"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PasswordResetToken(Entity):
+    __tablename__ = "password_reset_tokens"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class EmailVerificationToken(Entity):
+    __tablename__ = "email_verification_tokens"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Bidder(Entity):
@@ -102,6 +128,7 @@ class BidApplication(Entity):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rule_set_id: Mapped[UUID] = mapped_column(ForeignKey("eligibility_rule_sets.id"))
     __table_args__ = (
+        Index("ix_bid_applications_created_at_id", "created_at", "id"),
         Index(
             "uq_active_application", "bidder_id", "tender_id", unique=True,
             postgresql_where=(status != "closed"),

@@ -19,6 +19,7 @@ if _backend_dir not in sys.path:
 
 from src.config.settings import Settings  # noqa: E402
 from src.controllers.admin import router as admin_router  # noqa: E402
+from src.controllers.auth import router as auth_router  # noqa: E402
 from src.controllers.bidder import router as bidder_router  # noqa: E402
 from src.controllers.documents import router as documents_router  # noqa: E402
 from src.controllers.intelligence import router as intelligence_router  # noqa: E402
@@ -109,6 +110,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers["X-Request-ID"] = request.state.request_id
         return response
 
+    import time
+    
+    # Profiling middleware
+    @application.middleware("http")
+    async def profile_request(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        start_time = time.perf_counter()
+        response = await call_next(request)
+        process_time = time.perf_counter() - start_time
+        logger.info(
+            "Request %s %s completed in %.2fms",
+            request.method,
+            request.url.path,
+            process_time * 1000,
+        )
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+
     # Health
     @application.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
@@ -116,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HealthResponse()
 
     # API routes
+    application.include_router(auth_router, prefix="/api/v1")
     application.include_router(queries_router, prefix="/api/v1")
     application.include_router(mutations_router, prefix="/api/v1")
     application.include_router(admin_router, prefix="/api/v1")

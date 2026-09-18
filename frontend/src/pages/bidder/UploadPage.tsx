@@ -137,8 +137,9 @@ export function UploadPage() {
           </div>
 
           <div>
-            <label className="input-label">Document type</label>
+            <label htmlFor="docType" className="input-label">Document type</label>
             <select
+              id="docType"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
               className="input"

@@ -12,17 +12,28 @@ export function DashboardPage() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
 
+  const [page, setPage] = React.useState(1);
+  const limit = 20;
+
   const { data: apps, isLoading } = useQuery({
-    queryKey: ['applications', role],
-    queryFn: () => api.getApplications({ page: 1 }),
+    queryKey: ['applications', role, page],
+    queryFn: () => api.getApplications({ page }),
     retry: false,
   });
 
   const applications = apps?.data || [];
   const total = apps?.total || 0;
+  const totalPages = Math.ceil(total / limit) || 1;
+
   const pendingReview = applications.filter((a) => a.status === 'ready_for_review').length;
   const highRisk = applications.filter((a) => a.risk_level === 'HIGH').length;
   const closed = applications.filter((a) => a.status === 'closed').length;
+
+  const displayApplications = React.useMemo(() => {
+    if (role === 'vigilance') return applications.filter(a => a.risk_level === 'HIGH' || a.risk_level === 'MEDIUM');
+    if (role === 'officer') return applications.filter(a => a.status !== 'closed');
+    return applications; // admin sees all
+  }, [applications, role]);
 
   const stats = [
     { label: 'Total Applications', value: total, icon: <ClipboardList size={20} />, color: 'text-brand-700', bg: 'bg-brand-50' },
@@ -43,12 +54,35 @@ export function DashboardPage() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.full_name || 'Officer'}
+          Welcome back, {user?.full_name || 'User'}
         </h1>
         <p className="text-gray-500 mt-1">
-          Here&apos;s an overview of bid compliance activities.
+          {role === 'admin' ? 'System overview and configuration.' :
+           role === 'vigilance' ? 'Investigate anomalies and high-risk flags.' :
+           'Review pending applications and verify compliance.'}
         </p>
       </div>
+
+      {/* Role-Specific Banners */}
+      {role === 'admin' && (
+         <div className="p-4 bg-brand-50 rounded-lg border border-brand-200 flex sm:flex-row flex-col sm:justify-between sm:items-center gap-4 animate-slide-up">
+            <div>
+              <h3 className="font-bold text-brand-900">System Admin Controls</h3>
+              <p className="text-sm text-brand-700">Manage compliance risk thresholds and system rules.</p>
+            </div>
+            <button onClick={() => navigate('/admin/rules')} className="btn-primary flex-shrink-0">Configure Rules</button>
+         </div>
+      )}
+
+      {role === 'vigilance' && (
+         <div className="p-4 bg-red-50 rounded-lg border border-red-200 flex sm:flex-row flex-col sm:justify-between sm:items-center gap-4 animate-slide-up">
+            <div>
+              <h3 className="font-bold text-red-900">Active Investigations</h3>
+              <p className="text-sm text-red-700">You have {highRisk} high-risk applications requiring immediate attention.</p>
+            </div>
+            <button onClick={() => navigate('/intelligence/bid-rigging')} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium flex-shrink-0">View Network Analysis</button>
+         </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -99,8 +133,10 @@ export function DashboardPage() {
       {/* Recent Applications */}
       <div className="card">
         <div className="card-header flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Recent Applications</h2>
-          <span className="text-xs text-gray-400">{total} total</span>
+          <h2 className="text-base font-semibold text-gray-900">
+            {role === 'vigilance' ? 'High-Risk Applications' : role === 'admin' ? 'All Applications (System View)' : 'Applications Queue'}
+          </h2>
+          <span className="text-xs text-gray-400">{displayApplications.length} visible</span>
         </div>
         <div className="table-container">
           <table className="data-table">
@@ -123,14 +159,14 @@ export function DashboardPage() {
                     ))}
                   </tr>
                 ))
-              ) : applications.length === 0 ? (
+              ) : displayApplications.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center text-gray-400 py-12">
-                    No applications found. Create one from the Admin console.
+                    {role === 'vigilance' ? 'No high-risk applications found.' : 'No applications found in queue.'}
                   </td>
                 </tr>
               ) : (
-                applications.map((app) => (
+                displayApplications.map((app) => (
                   <tr key={app.id} onClick={() => navigate(`/cases/${app.id}`)}>
                     <td className="font-medium text-gray-900">{app.bidder_name}</td>
                     <td className="text-gray-600 max-w-[200px] truncate">{app.tender_title}</td>
@@ -164,6 +200,29 @@ export function DashboardPage() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="btn-secondary btn-sm"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-500">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="btn-secondary btn-sm"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

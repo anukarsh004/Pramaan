@@ -1,28 +1,16 @@
 /**
  * Typed API client for Pramaan backend.
- * All requests go through /api/v1 and include dev auth headers.
+ * All requests go through /api/v1.
  */
 
-const API_BASE = '/api/v1';
-
-type DevRole = 'officer' | 'admin' | 'bidder' | 'vigilance';
-
-let currentDevRole: DevRole = 'officer';
-
-export function setDevRole(role: DevRole) {
-  currentDevRole = role;
-}
-
-export function getDevRole(): DevRole {
-  return currentDevRole;
-}
+// Use the environment variable if set, otherwise fallback to local proxy path
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
-    'X-Dev-Role': currentDevRole,
     ...(options.headers as Record<string, string> || {}),
   };
 
@@ -34,11 +22,12 @@ async function request<T>(
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
+    credentials: 'include', // Important for sending/receiving cookies
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(error?.error?.message || `Request failed: ${res.status}`);
+    throw new Error(error?.error?.message || error?.detail || `Request failed: ${res.status}`);
   }
 
   return res.json();
@@ -47,6 +36,32 @@ async function request<T>(
 // ── Auth ──
 export const api = {
   // Session
+  register: (body: Record<string, string>) =>
+    request<ApiResponse<{ message: string }>>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  login: (body: Record<string, string>) => 
+    request<ApiResponse<SessionData>>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  logout: () => request<ApiResponse<null>>('/auth/logout', { method: 'POST' }),
+  verifyEmail: (body: { token: string }) =>
+    request<ApiResponse<{ message: string }>>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  forgotPassword: (body: { email: string }) =>
+    request<ApiResponse<{ message: string }>>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  resetPassword: (body: Record<string, string>) =>
+    request<ApiResponse<{ message: string }>>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getSession: () => request<ApiResponse<SessionData>>('/auth/session'),
 
   // Tenders

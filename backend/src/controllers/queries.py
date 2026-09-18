@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import JsonValue
 from sqlalchemy import func, select
 
-from src.controllers.dependencies import Actor, Session, csrf_token
+from src.controllers.dependencies import Actor, Session
 from src.domain.contracts import Role
 from src.models.entities import (
     Assignment, AuditEvent, BidApplication, Bidder, CheckType, ComplianceCheck,
@@ -21,9 +21,10 @@ router = APIRouter()
 
 @router.get("/auth/session")
 async def profile(request: Request, actor: Actor) -> dict[str, JsonValue]:
+    cookie_csrf = request.cookies.get("csrf_token") or "dev-csrf-token"
     return {"success": True, "data": {
         "id": str(actor.id), "full_name": actor.full_name, "role": actor.role,
-        "csrf_token": csrf_token(request.app.state.settings, actor),
+        "csrf_token": cookie_csrf,
     }}
 
 
